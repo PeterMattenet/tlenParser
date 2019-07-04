@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace TelengParser
@@ -41,6 +42,7 @@ namespace TelengParser
                 .OrderBy(x => x.Key)
                 .ToList();
 
+            var lineSkips = FindNewLineMatches(inputMessage);
 
             TokenMatch lastMatch = null;
             for (int i = 0; i < groupedByIndex.Count; i++)
@@ -49,12 +51,36 @@ namespace TelengParser
                 if (lastMatch != null && bestMatch.StartIndex < lastMatch.EndIndex)
                     continue;
 
-                yield return new DslToken(bestMatch.TokenType, bestMatch.Value);
+                var matchLine = GetMatchLine(bestMatch, lineSkips);
 
+                yield return new DslToken(bestMatch.TokenType, bestMatch.Value, matchLine);
+                
                 lastMatch = bestMatch;
             }
 
             yield return new DslToken(TokenType.EOF);
+        }
+
+        private int GetMatchLine(TokenMatch bestMatch, MatchCollection lineSkips)
+        {
+            int matchLine = lineSkips.Count + 1;
+            for (int i = 0; i < lineSkips.Count; i++)
+            {
+                if (lineSkips[i].Index > bestMatch.EndIndex)
+                {
+                    matchLine = i + 1;
+                    break;
+                }
+
+            }
+
+            return matchLine;
+        }
+
+        private MatchCollection FindNewLineMatches(string inputMessage)
+        {
+            Regex regEx = new Regex("\n");
+            return regEx.Matches(inputMessage);
         }
 
         private List<TokenMatch> FindTokenMatches(string inputMessage)

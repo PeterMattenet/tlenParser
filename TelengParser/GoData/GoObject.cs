@@ -4,13 +4,17 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace TelengParser.MierdaDeGo
+namespace TelengParser
 {
-    public class GoStruct : GoProperty
+    public class GoObject
     {
         public Dictionary<string, GoProperty> _properties;
-        
-        public GoStruct()
+
+        public string ObjectType;
+
+        public int LineDefinition;
+
+        public GoObject()
         {
             _properties = new Dictionary<string, GoProperty>();
         }

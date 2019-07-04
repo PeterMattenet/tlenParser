@@ -15,18 +15,20 @@ namespace TelengParser
             Value = string.Empty;
         }
 
-        public DslToken(TokenType tokenType, string value)
+        public DslToken(TokenType tokenType, string value, int matchLine)
         {
             TokenType = tokenType;
             Value = value;
+            LineNumber = matchLine;
         }
 
         public TokenType TokenType { get; set; }
         public string Value { get; set; }
+        public int LineNumber { get; set; }
 
         public DslToken Clone()
         {
-            return new DslToken(TokenType, Value);
+            return new DslToken(TokenType, Value, LineNumber);
         }
     }
 

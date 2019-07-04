@@ -1,5 +1,7 @@
-﻿using System.Collections.Generic;
-using TelengParser.MierdaDeGo;
+﻿using System;
+using System.Collections.Generic;
+using TelengParser.GoData;
+using System.Linq;
 
 namespace TelengParser
 {
@@ -16,32 +18,102 @@ namespace TelengParser
 
         private DslToken MatchToken(TokenType tokenExpected)
         {
-            if (_iterator.Current.TokenType != tokenExpected)
-            {
-                throw new System.Exception("Invalid input");
-            }
-
             var dslToken = _iterator.Current;
+
+            if (dslToken.TokenType != tokenExpected)
+            {
+                throw new ParserInvalidTokenException(dslToken);
+            }
 
             _iterator.MoveNext();
 
             return dslToken;
         }
 
-        public Dictionary<string,GoObject> SetAndValidateInput(IEnumerable<DslToken> tokenList)
+        public GoInstance SetAndValidateInput(IEnumerable<DslToken> tokenList)
         {
             _iterator = tokenList.GetEnumerator();
 
             _iterator.MoveNext();
 
-            CallRoutineS(out Dictionary<string,GoObject> _contentInstance);
+            var mainObject = string.Empty;
 
-            MatchToken(TokenType.EOF);
+            try
+            {
+                CallRoutineS(out Dictionary<string, GoObject> _contentInstance, out mainObject);
 
-            return _contentInstance;
+                this._contentInstance = _contentInstance;
+
+                CheckNoMissingDependencies();
+
+                CheckNoCircularDependencies();
+
+                MatchToken(TokenType.EOF);
+            }
+            catch (GoParserException parserEx)
+            {
+                //Outputtear esto despues por consola cuando fallo por parseo
+                var err = parserEx.ParserExceptionMessage;
+            }
+            catch (Exception)
+            {
+                //RIP la vida
+                throw;
+            }
+
+            return new GoInstance(_contentInstance, mainObject);
         }
 
-        private void CallRoutineS(out Dictionary<string, GoObject> entityDictionary)
+        private void CheckNoMissingDependencies()
+        {
+            foreach (GoObject obj in _contentInstance.Values)
+            {
+                foreach (GoProperty prop in obj._properties.Values)
+                {
+                    prop.FailIfUndefinedInParser(this);
+                }
+            }
+        }
+
+        private void CheckNoCircularDependencies()
+        {
+            var types = _contentInstance.Values;
+
+            if (types.Count == 0)
+                return;
+
+            var iterator = types.GetEnumerator();
+
+            //Itero en todos porque a) si el grafo tiene componentes inconexas entonces hay que probar el algoritmo arrancando por todo tipo, b) podriamos guardarnos los recorridos pero pinto paja
+            bool hasNext = iterator.MoveNext();
+
+            while (hasNext)
+            {
+                Stack<GoObject> pathTaken = new Stack<GoObject>();
+
+                pathTaken.Push(iterator.Current);
+
+                TraverseDependencies(pathTaken);
+
+                hasNext = iterator.MoveNext();
+            }
+
+
+        }
+
+        private void TraverseDependencies(Stack<GoObject> pathTaken)
+        {
+            var currentObject = pathTaken.Peek();
+
+            foreach (GoProperty goProp in currentObject._properties.Values)
+            {
+                goProp.NavigateDependenciesTo(pathTaken, this);
+            }
+        }
+
+
+        #region Parser Routine Calls
+        private void CallRoutineS(out Dictionary<string, GoObject> entityDictionary, out string mainObject)
         {
             DslToken matchToken;
 
@@ -59,16 +131,28 @@ namespace TelengParser
 
                 MatchToken(TokenType.StructRightKey);
 
-                CallRoutineS(out entityDictionary);
+                CallRoutineS(out entityDictionary, out mainObject);
 
+                currentGoObject.LineDefinition = matchToken.LineNumber;
                 currentGoObject.ObjectType = currentGoObjectKey;
-                entityDictionary.Add(currentGoObjectKey, currentGoObject);
+
+                try
+                {
+                    entityDictionary.Add(currentGoObjectKey, currentGoObject);
+                }
+                catch (ArgumentException ex)
+                {
+                    throw new ParserTypeDefinedTwiceException(matchToken, ex.Message);
+                }
+                
+                mainObject = currentGoObjectKey;
             }
             else
             {
+                mainObject = string.Empty;
                 entityDictionary = new Dictionary<string, GoObject>();
             }
-            
+
         }
 
         private void CallRoutineST(out GoObject currentGoObject)
@@ -76,21 +160,27 @@ namespace TelengParser
 
             if (_iterator.Current.TokenType == TokenType.Id)
             {
-                var dslMatch = MatchToken(TokenType.Id);
-                var currentGoPropertyKey = dslMatch.Value;
+                var matchToken = MatchToken(TokenType.Id);
+                var currentGoPropertyKey = matchToken.Value;
 
                 CallRoutineTY(out GoProperty currentGoProperty);
-
-                //Traeme un goObject de mi hijo
+                
                 CallRoutineST(out currentGoObject);
 
-                currentGoObject._properties.Add(currentGoPropertyKey, currentGoProperty);
+                try
+                {
+                    currentGoObject._properties.Add(currentGoPropertyKey, currentGoProperty);
+                }
+                catch (ArgumentException ex)
+                {
+                    throw new ParserPropertyDefinedTwiceException(matchToken, currentGoObject.ObjectType, ex.Message);
+                }
             }
             else
             {
                 currentGoObject = new GoObject();
             }
-               
+
             //CallRoutineSTR(ref currentGoObject);
         }
 
@@ -98,15 +188,21 @@ namespace TelengParser
         {
             if (_iterator.Current.TokenType == TokenType.Id)
             {
-                var dslMatch = MatchToken(TokenType.Id);
-                var currentGoPropertyKey = dslMatch.Value;
+                var matchToken = MatchToken(TokenType.Id);
+                var currentGoPropertyKey = matchToken.Value;
 
                 CallRoutineTY(out GoProperty currentGoStructProperty);
 
-                //Traeme un goObject de mi hijo
                 CallRoutineSTR(out currentGoStruct);
 
-                currentGoStruct._properties.Add(currentGoPropertyKey, currentGoStructProperty);
+                try
+                {
+                    currentGoStruct._properties.Add(currentGoPropertyKey, currentGoStructProperty);
+                }
+                catch (ArgumentException ex)
+                {
+                    throw new ParserPropertyDefinedTwiceException(matchToken, ex.Message);
+                }
             }
             else
             {
@@ -114,65 +210,65 @@ namespace TelengParser
             }
         }
 
-        private void CallRoutineTYA(out GoArray currentGoArray)
-        {
+        //private void CallRoutineTYA(out GoArray currentGoArray)
+        //{
 
-            switch (_iterator.Current.TokenType)
-            {
-                case TokenType.Array:
-                    MatchToken(TokenType.Array);
-                    CallRoutineTYA(out currentGoArray);
-                    currentGoArray.Dimensions++;
-                    break;
+        //    switch (_iterator.Current.TokenType)
+        //    {
+        //        case TokenType.Array:
+        //            MatchToken(TokenType.Array);
+        //            CallRoutineTYA(out GoProperty childGoArray);
+        //            currentGoArray = new GoArray();
+        //            currentGoArray.ArrayProperty = childGoArray
+        //            currentGoArray.Dimensions++;
+        //            break;
 
-                case TokenType.Int:
-                    MatchToken(TokenType.Int);
-                    currentGoArray = new GoArray();
-                    currentGoArray.ArrayProperty = new GoInt(); 
-                    break;
+        //        case TokenType.Int:
+        //            MatchToken(TokenType.Int);
+        //            currentGoArray = new GoArray();
+        //            currentGoArray.ArrayProperty = new GoInt();
+        //            break;
 
-                case TokenType.String:
-                    MatchToken(TokenType.String);
-                    currentGoArray = new GoArray();
-                    currentGoArray.ArrayProperty = new GoString();
-                    break;
+        //        case TokenType.String:
+        //            MatchToken(TokenType.String);
+        //            currentGoArray = new GoArray();
+        //            currentGoArray.ArrayProperty = new GoString();
+        //            break;
 
-                case TokenType.Float64:
-                    MatchToken(TokenType.Float64);
-                    currentGoArray = new GoArray();
-                    currentGoArray.ArrayProperty = new GoFloat();
-                    break;
+        //        case TokenType.Float64:
+        //            MatchToken(TokenType.Float64);
+        //            currentGoArray = new GoArray();
+        //            currentGoArray.ArrayProperty = new GoFloat();
+        //            break;
 
-                case TokenType.Bool:
-                    MatchToken(TokenType.Bool);
-                    currentGoArray = new GoArray();
-                    currentGoArray.ArrayProperty = new GoBool();
-                    break;
+        //        case TokenType.Bool:
+        //            MatchToken(TokenType.Bool);
+        //            currentGoArray = new GoArray();
+        //            currentGoArray.ArrayProperty = new GoBool();
+        //            break;
 
-                case TokenType.Id:
-                    MatchToken(TokenType.Id);
-                    currentGoArray = new GoArray();
-                    var dslMatch = MatchToken(TokenType.Id);
-                    var currentGoPropertyKey = dslMatch.Value;
-                    currentGoArray.ArrayProperty = new GoTypeKey(currentGoPropertyKey);
-                    break;
+        //        case TokenType.Id:
+        //            MatchToken(TokenType.Id);
+        //            currentGoArray = new GoArray();
+        //            var dslMatch = MatchToken(TokenType.Id);
+        //            var currentGoPropertyKey = dslMatch.Value;
+        //            currentGoArray.ArrayProperty = new GoTypeKey(currentGoPropertyKey, dslMatch.LineNumber);
+        //            break;
 
-                case TokenType.Struct:
-                    MatchToken(TokenType.Struct);
-                    MatchToken(TokenType.StructLeftKey);
-                    CallRoutineSTR(out GoStruct arrayStructProperty);
-                    currentGoArray = new GoArray();
-                    currentGoArray.ArrayProperty = arrayStructProperty;
-                    MatchToken(TokenType.StructRightKey);
-                    break;
-                default:
-                    throw new System.Exception("Invalid token type for array");
-            }
+        //        case TokenType.Struct:
+        //            MatchToken(TokenType.Struct);
+        //            MatchToken(TokenType.StructLeftKey);
+        //            CallRoutineSTR(out GoStruct arrayStructProperty);
+        //            currentGoArray = new GoArray();
+        //            currentGoArray.ArrayProperty = arrayStructProperty;
+        //            MatchToken(TokenType.StructRightKey);
+        //            break;
+        //        default:
+        //            throw new System.Exception("Invalid token type for array");
+        //    }
 
-        }
-
-        //private void CallRoutineSTA()
-
+        //}
+        
         private void CallRoutineTY(out GoProperty currentGoProperty)
         {
 
@@ -180,7 +276,9 @@ namespace TelengParser
             {
                 case TokenType.Array:
                     MatchToken(TokenType.Array);
-                    CallRoutineTYA(out GoArray currentGoArray);
+                    CallRoutineTY(out GoProperty childGoProperty);
+                    GoArray currentGoArray = new GoArray();
+                    currentGoArray.ArrayProperty = childGoProperty;
                     currentGoProperty = currentGoArray;
                     break;
 
@@ -206,7 +304,7 @@ namespace TelengParser
                 case TokenType.Id:
                     var dslMatch = MatchToken(TokenType.Id);
                     var currentGoPropertyKey = dslMatch.Value;
-                    currentGoProperty = new GoTypeKey(currentGoPropertyKey);
+                    currentGoProperty = new GoTypeKey(currentGoPropertyKey, dslMatch.LineNumber);
                     break;
                 case TokenType.Struct:
                     MatchToken(TokenType.Struct);
@@ -219,5 +317,67 @@ namespace TelengParser
                     throw new System.Exception("Invalid property token");
             }
         }
+        #endregion
+
+        #region Double Dispatch Methods
+
+        public void NavigateDependenciesInto(GoTypeKey goTypeKey, Stack<GoObject> pathTaken)
+        {
+            if (pathTaken.Any(obj => obj.ObjectType == goTypeKey.KeyValue))
+                throw new ParserDependencyCycleException(pathTaken.Peek(), goTypeKey, _contentInstance[goTypeKey.KeyValue]);
+
+            pathTaken.Push(_contentInstance[goTypeKey.KeyValue]);
+            TraverseDependencies(pathTaken);
+            pathTaken.Pop();
+        }
+
+        public void NavigateDependenciesInto(GoStruct goStruct, Stack<GoObject> pathTaken)
+        {
+            foreach (GoProperty goProp in goStruct._properties.Values)
+            {
+                goProp.NavigateDependenciesTo(pathTaken, this);
+            }
+        }
+
+        public void NavigateDependenciesInto(GoArray goArray, Stack<GoObject> pathTaken)
+        {
+            goArray.ArrayProperty.NavigateDependenciesTo(pathTaken, this);
+        }
+
+        public void AddGoPropertyToNavigationQueue(GoArray goArray, Queue<GoObject> navigationQueue)
+        {
+            goArray.ArrayProperty.AddToTypeNavigationQueue(navigationQueue, this);
+        }
+
+        public void AddGoPropertyToNavigationQueue(GoTypeKey goTypeKey, Queue<GoObject> navigationQueue)
+        {
+            navigationQueue.Enqueue(_contentInstance[goTypeKey.KeyValue]);
+        }
+
+        public void AddGoPropertyToNavigationQueue(GoStruct goStruct, Queue<GoObject> navigationQueue)
+        {
+            foreach (GoProperty goProp in goStruct._properties.Values)
+            {
+                goProp.AddToTypeNavigationQueue(navigationQueue, this);
+            }
+        }
+
+        public void IsPropertyDefined(GoArray goArray)
+        {
+            goArray.ArrayProperty.FailIfUndefinedInParser(this);
+        }
+
+        public void IsPropertyDefined(GoStruct goStruct)
+        {
+            foreach (GoProperty prop in goStruct._properties.Values)
+                prop.FailIfUndefinedInParser(this);
+        }
+
+        public void IsPropertyDefined(GoTypeKey goObjKey)
+        {
+            if (!_contentInstance.ContainsKey(goObjKey.KeyValue))
+                throw new ParserUndefinedObjectTypeReferenceException(goObjKey);
+        }
+        #endregion
     }
 }

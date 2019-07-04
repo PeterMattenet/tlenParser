@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using TelengParser.GoData;
 
 namespace TelengParser
 {
@@ -22,9 +23,10 @@ namespace TelengParser
                     var resultTokens = lexer.Tokenize(input);
 
                     GoParser parser = new GoParser();
-                    Dictionary<string, GoObject> instance = parser.SetAndValidateInput(resultTokens);
+
+                    GoInstance instance = parser.SetAndValidateInput(resultTokens);
                     
-                    //object jsonResult = parser.GetRandomObject();
+                    object jsonResult = instance.GetRandomMainObject();
                 }
             }
 
