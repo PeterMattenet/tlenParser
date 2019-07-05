@@ -23,6 +23,7 @@ namespace TelengParser.GoData
         public override dynamic GenerateTrashValue(GoInstance goInstance)
         {
             StringBuilder builder = new StringBuilder();
+            rand = new Random();
             int size = rand.Next(0, 128);
 
             char ch;
@@ -31,7 +32,12 @@ namespace TelengParser.GoData
                 ch = Convert.ToChar(Convert.ToInt32(Math.Floor(26 * rand.NextDouble() + 65)));
                 builder.Append(ch);
             }
-            
+
+            /*Random random = new Random();
+            string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+            for (int i = 0; i < size; i++)
+                builder.Append(chars[random.Next(chars.Length)]);
+            */
             return builder.ToString().ToLower();
             
         }
