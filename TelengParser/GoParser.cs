@@ -54,6 +54,7 @@ namespace TelengParser
             {
                 //Outputtear esto despues por consola cuando fallo por parseo
                 var err = parserEx.ParserExceptionMessage;
+                throw new Exception(err);
             }
             catch (Exception)
             {

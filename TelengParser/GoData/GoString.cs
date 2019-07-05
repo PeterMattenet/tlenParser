@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace TelengParser.GoData
@@ -23,6 +24,7 @@ namespace TelengParser.GoData
         public override dynamic GenerateTrashValue(GoInstance goInstance)
         {
             StringBuilder builder = new StringBuilder();
+            Thread.Sleep(100);
             rand = new Random();
             int size = rand.Next(0, 128);
 
@@ -33,11 +35,18 @@ namespace TelengParser.GoData
                 builder.Append(ch);
             }
 
-            /*Random random = new Random();
-            string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-            for (int i = 0; i < size; i++)
-                builder.Append(chars[random.Next(chars.Length)]);
-            */
+            /*var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+            var stringChars = new char[8];
+            var random = new Random();
+
+            for (int i = 0; i < stringChars.Length; i++)
+            {
+                stringChars[i] = chars[random.Next(chars.Length)];
+            }
+
+            var finalString = new String(stringChars);
+            
+            return finalString;*/
             return builder.ToString().ToLower();
             
         }
