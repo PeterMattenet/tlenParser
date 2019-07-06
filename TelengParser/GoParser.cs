@@ -209,67 +209,7 @@ namespace TelengParser
             {
                 currentGoStruct = new GoStruct();
             }
-        }
-
-        //private void CallRoutineTYA(out GoArray currentGoArray)
-        //{
-
-        //    switch (_iterator.Current.TokenType)
-        //    {
-        //        case TokenType.Array:
-        //            MatchToken(TokenType.Array);
-        //            CallRoutineTYA(out GoProperty childGoArray);
-        //            currentGoArray = new GoArray();
-        //            currentGoArray.ArrayProperty = childGoArray
-        //            currentGoArray.Dimensions++;
-        //            break;
-
-        //        case TokenType.Int:
-        //            MatchToken(TokenType.Int);
-        //            currentGoArray = new GoArray();
-        //            currentGoArray.ArrayProperty = new GoInt();
-        //            break;
-
-        //        case TokenType.String:
-        //            MatchToken(TokenType.String);
-        //            currentGoArray = new GoArray();
-        //            currentGoArray.ArrayProperty = new GoString();
-        //            break;
-
-        //        case TokenType.Float64:
-        //            MatchToken(TokenType.Float64);
-        //            currentGoArray = new GoArray();
-        //            currentGoArray.ArrayProperty = new GoFloat();
-        //            break;
-
-        //        case TokenType.Bool:
-        //            MatchToken(TokenType.Bool);
-        //            currentGoArray = new GoArray();
-        //            currentGoArray.ArrayProperty = new GoBool();
-        //            break;
-
-        //        case TokenType.Id:
-        //            MatchToken(TokenType.Id);
-        //            currentGoArray = new GoArray();
-        //            var dslMatch = MatchToken(TokenType.Id);
-        //            var currentGoPropertyKey = dslMatch.Value;
-        //            currentGoArray.ArrayProperty = new GoTypeKey(currentGoPropertyKey, dslMatch.LineNumber);
-        //            break;
-
-        //        case TokenType.Struct:
-        //            MatchToken(TokenType.Struct);
-        //            MatchToken(TokenType.StructLeftKey);
-        //            CallRoutineSTR(out GoStruct arrayStructProperty);
-        //            currentGoArray = new GoArray();
-        //            currentGoArray.ArrayProperty = arrayStructProperty;
-        //            MatchToken(TokenType.StructRightKey);
-        //            break;
-        //        default:
-        //            throw new System.Exception("Invalid token type for array");
-        //    }
-
-        //}
-        
+        }        
         private void CallRoutineTY(out GoProperty currentGoProperty)
         {
 
